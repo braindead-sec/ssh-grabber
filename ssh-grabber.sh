@@ -22,6 +22,7 @@ fi
 function parse_creds () {
 	local i=0
 	while IFS='' read -r line || [[ -n "$line" ]]; do
+		local user=""
 		# Get lines that write to file descriptor 4 and have a length greater than 5
 		if [[ "$line" == "write(4, "* ]] && (( $(echo "$line" | awk '{print $NF}') > 5 )); then
 			# Get the quoted string and remove the first four hex characters
@@ -32,7 +33,7 @@ function parse_creds () {
 				input=$(echo -e "$input")
 				# Identify the username and password(s)
 				if [ "$i" -eq "0" ]; then
-					local user="$input"
+					user="$input"
 				else
 					echo "$user:$input" >>"$outfile"
 					echo "Login attempt from $user:$input"
